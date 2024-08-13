@@ -1,58 +1,179 @@
 import argparse
 import pandas as pd
 
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--csv", required=True, type=str)
 args = parser.parse_args()
 
-genotyping_df = pd.DataFrame()
-result = pd.read_csv(args.csv)
+result = pd.read_csv(args.csv) # read the CSV file in as the DataFrame
 
+
+
+# check Tardbp
 y = 0
-for x in result["Tardbp-3 FL"]:
+
+for x in result["Tardbp-3 FL"]: # iterate through the Tardbp-3 FL column
+    
     if x == "+  ":
-        result.at[y, "Tardbp"] = "Tf/Tf"
+        
         if result["Tardbp-3 WT"][y] == "+  ":
-            result.at[y, "Tardbp"] = "Tf/x"
-        y = y + 1
+            
+            result.at[y, "Tardbp"] = "Tf/x" # assign "Tf/x" to the Tardbp column
+        
+        elif result["Tardbp-3 WT"][y] == "-  ":
+            
+            result.at[y, "Tardbp"] = "Tf/Tf"
+        
+        else:
+            
+            result.at[y, "Tardbp"] = "Tf/Tf or Tf/x"
+    
+    elif x == "-  ":
+        
+        result.at[y, "Tardbp"] = "WT"
+    
     else:
-        result.at[y, "Tardbp"] = ""
-        y = y + 1
+        
+        result.at[y, "Tardbp"] = "unknown"
+        
+    y = y + 1
 
+
+
+# check Chat-1
 z = 0
-for i in result["Chat-1 TG"]:
-    if i == "+  ":
-        result.at[z, "Chat-1"] = "Cre/Cre"
-        if result["Chat-1 WT"][z] == "+  ":
-            result.at[z, "Chat-1"] = "Cre/x"
-        z = z + 1
-    else:
-        result.at[z, "Chat-1"] = ""
-        z = z + 1
 
-result["TranslatedResult"] = result["Tardbp"] + "_" + result["Chat-1"]
+for i in result["Chat-1 TG"]:
+    
+    if i == "+  ":
+        
+        if result["Chat-1 WT"][z] == "+  ":
+            
+            result.at[z, "Chat-1"] = "Cre/x"
+        
+        elif result["Chat-1 WT"][z] == "-  ":
+            
+            result.at[z, "Chat-1"] = "Cre/Cre"
+        
+        else:
+            
+            result.at[z, "Chat-1"] = "Cre/Cre or Cre/x"
+            
+    elif i == "-  ":
+        
+        result.at[z, "Chat-1"] = "WT"
+    
+    else:
+        
+        result.at[z, "Chat-1"] = "unknown"
+    
+    z = z + 1
+
+
+
+# translate the results
+result["TranslatedResult"] = "" # ensure the necessary column is initialized as object types (for strings)
 
 j = 0
-for type in result["TranslatedResult"]:
-    if type == "Tf/x_":
-        result.at[j, "TranslatedResult"] = "Tf/x"
-        j = j + 1
-    elif type == "Tf/Tf_":
-        result.at[j, "TranslatedResult"] = "Tf/Tf"
-        j = j + 1
-    elif type == "_Cre/x":
-        result.at[j, "TranslatedResult"] = "Cre/x"
-        j = j + 1
-    elif type == "_Cre/Cre":
-        result.at[j, "TranslatedResult"] = "Cre/Cre"
-        j = j + 1
-    else: 
-        j = j + 1
 
+for Tardbp, Chat_1 in zip(result["Tardbp"], result["Chat-1"]):
+    
+    if Tardbp == "Tf/Tf or Tf/x":
+        
+        if Chat_1 == "Cre/Cre or Cre/x":
+            
+            result.at[j, "TranslatedResult"] = "Tf/Tf or Tf/x; Cre/Cre or Cre/x"
+        
+        if Chat_1 == "WT":
+            
+            result.at[j, "TranslatedResult"] = Tardbp
+            
+        if Chat_1 == "Cre/x":
+            
+            result.at[j, "TranslatedResult"] = "Tf/Tf_Cre/x or Tf/x_Cre/x"
+        
+        if Chat_1 == "Cre/Cre":
+            
+            result.at[j, "TranslatedResult"] = "Tf/Tf_Cre/Cre or Tf/x_Cre/Cre"
+        
+        if Chat_1 == "unknown":
+            
+            result.at[j, "TranslatedResult"] = ""
+    
+    if Tardbp == "WT":
+        
+        if Chat_1 == "WT":
+            
+            result.at[j, "TranslatedResult"] = "WT"
+        
+        if Chat_1 == "unknown":
+            
+            result.at[j, "TranslatedResult"] = ""
+        
+        else:
+            
+            result.at[j, "TranslatedResult"] = Chat_1
+    
+    if Tardbp == "Tf/x":
+        
+        if Chat_1 == "Cre/Cre or Cre/x":
+            
+            result.at[j, "TranslatedResult"] = "Tf/x_Cre/Cre or Tf/x_Cre/x"
+        
+        if Chat_1 == "WT":
+            
+            result.at[j, "TranslatedResult"] = Tardbp
+        
+        if Chat_1 == "Cre/x":
+            
+            result.at[j, "TranslatedResult"] = Tardbp + "_" + Chat_1
+        
+        if Chat_1 == "Cre/Cre":
+            
+            result.at[j, "TranslatedResult"] = Tardbp + "_" + Chat_1
+        
+        if Chat_1 == "unknown":
+            
+            result.at[j, "TranslatedResult"] = ""
+    
+    if Tardbp == "Tf/Tf":
+        
+        if Chat_1 == "Cre/Cre or Cre/x":
+            
+            result.at[j, "TranslatedResult"] = "Tf/Tf_Cre/Cre or Tf/Tf_Cre/x"
+        
+        if Chat_1 == "WT":
+            
+            result.at[j, "TranslatedResult"] = Tardbp
+        
+        if Chat_1 == "Cre/x":
+            
+            result.at[j, "TranslatedResult"] = Tardbp + "_" + Chat_1
+        
+        if Chat_1 == "Cre/Cre":
+            
+            result.at[j, "TranslatedResult"] = Tardbp + "_" + Chat_1
+        
+        if Chat_1 == "unknown":
+            
+            result.at[j, "TranslatedResult"] = ""
+    
+    if Tardbp == "unknown":
+        
+        result.at[j, "TranslatedResult"] = ""
+    
+    j = j + 1
+
+
+
+# drop the columns "Tardbp" and "Chat-1" from the data frame
 columns_to_drop = ["Tardbp", "Chat-1"]
 result = result.drop(columns_to_drop, axis=1)
-# In the case of a DataFrame, axis=1 refers to the columns axis, while axis=0 refers to the rows axis
+
+
 
 result.to_csv(args.csv, index=False)
-# If index=True, the index values 0, 1, 2, and so on are automatically generated by pandas as the row labels
-# When writing the DataFrame to the CSV file, these index values are included as a separate column in the CSV output
+# if index=True, the index values 0, 1, 2, and so on are automatically generated by pandas as the row labels
+# when writing the DataFrame to the CSV file, these index values are included as a separate column in the CSV output
