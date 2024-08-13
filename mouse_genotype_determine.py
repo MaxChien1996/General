@@ -84,7 +84,7 @@ for Tardbp, Chat_1 in zip(result["Tardbp"], result["Chat-1"]):
         
         if Chat_1 == "Cre/Cre or Cre/x":
             
-            result.at[j, "TranslatedResult"] = "Tf/Tf or Tf/x; Cre/Cre or Cre/x"
+            result.at[j, "TranslatedResult"] = ""
         
         if Chat_1 == "WT":
             
