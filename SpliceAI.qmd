@@ -1,0 +1,114 @@
+---
+title: "SpliceAI"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Setting
+
+Use Conda environment "SpliceAI" to run python codes
+
+```{r}
+library(tidyverse)
+library(reticulate)
+
+use_condaenv("SpliceAI", conda = "/opt/anaconda3/bin/conda", required = TRUE)
+```
+
+Import SpliceAI module
+
+```{python}
+import matplotlib.pyplot as plt
+from keras.models import load_model
+from pkg_resources import resource_filename
+from spliceai.utils import one_hot_encode
+import numpy as np
+
+paths = ('models/spliceai{}.h5'.format(x) for x in range(1, 6))
+models = [load_model(resource_filename('spliceai', x)) for x in paths]
+```
+
+Set functions
+
+```{python}
+def get_probs(input_sequence):
+  context = 10000
+  x = one_hot_encode('N'*(context//2) + input_sequence + 'N'*(context//2))[None, :]
+  y = np.mean([models[m].predict(x) for m in range(5)], axis=0)
+
+  acceptor_prob = y[0, :, 1]
+  donor_prob = y[0, :, 2]
+  nt_pos = [a for a in range(len(acceptor_prob))]
+
+  return acceptor_prob, donor_prob, nt_pos
+```
+
+```{r}
+plot_splice_sites <- function(nt_pos, acceptor_prob, donor_prob, trim_start = 0, trim_end = 0) {
+  
+  # Trim the data
+  nt_pos <- nt_pos[(trim_start + 1):(length(nt_pos) - trim_end)]
+  acceptor_prob <- acceptor_prob[(trim_start + 1):(length(acceptor_prob) - trim_end)]
+  donor_prob <- donor_prob[(trim_start + 1):(length(donor_prob) - trim_end)]
+  
+  # Create a data frame
+  df <- data.frame(
+    nt_pos = rep(nt_pos, 2),
+    probability = c(acceptor_prob, donor_prob),
+    type = rep(c("acceptor", "donor"), each = length(nt_pos))
+  ) %>% 
+    mutate(type = factor(type, levels = c("donor", "acceptor")))
+  
+  # Plot using ggplot2
+  ggplot(df) +
+    geom_point(aes(x = nt_pos, y = probability * 100, color = type), size = 2, alpha = 0.8) +
+    labs(x = "nucleotide position", y = "probability (%)", color = "splice site") +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 5)) + 
+    scale_color_manual(values = c("acceptor" = "#1f77b4", "donor" = "#ff7f0e")) + 
+    theme(text = element_text(size = 16)) + 
+    theme(
+      legend.position = "top", 
+      legend.justification = "right",  # Align to the right
+      #legend.box = "horizontal",  # Horizontal legend layout
+      )
+}
+```
+
+## Testing the sequence
+
+Predict splicing possibility
+
+```{python}
+input_sequence = 'ggctccggtgcccgtcagtgggcagagcgcacatcgcccacagtccccgagaagttggggggaggggtcggcaattgaaccggtgcctagagaaggtggcgcggggtaaactgggaaagtgatgtcgtgtactggctccgcctttttcccgagggtgggggagaaccgtatataagtgcagtagtcgccgtgaacgttctttttcgcaacgggtttgccgccagaacacaggtaagtgccgtgtgtggttcccgcgggcctggcctctttacgggttatggcccttgcgtgccttgaattacttccacgcccctggctgcagtacgtgattcttgatcccgagcttcgggttggaagtgggtgggagagttcgaggccttgcgcttaaggagccccttcgcctcgtgcttgagttgaggcctggcttgggcgctggggccgccgcgtgcgaatctggtggcaccttcgcgcctgtctcgctgctttcgataagtctctagccatttaaaatttttgatgacctgctgcgacgctttttttctggcaagatagtcttgtaaatgcgggccaagatctgcacactggtatttcggtttttggggccgcgggcggcgacggggcccgtgcgtcccagcgcacatgttcggcgaggcggggcctgcgagcgcggccaccgagaatcggacgggggtagtctcaagctggccggcctgctctggtgcctggcctcgcgccgccgtgtatcgccccgccctgggcggcaaggctggcccggtcggcaccagttgcgtgagcggaaagatggccgcttcccggccctgctgcagggagctcaaaatggaggacgcggcgctcgggagagcgggcgggtgagtcacccacacaaaggaaaagggcctttccgtcctcagccgtcgcttcatgtgactccacggagtaccgggcgccgtccaggcacctcgattagttctcgagcttttggagtacgtcgtctttaggttggggggaggggttttatgcgatggagtttccccacactgagtgggtggagactgaagttaggccagcttggcacttgatgtaattctccttggaatttgccctttttgagtttggatcttggttcattctcaagcctcagacagtggttcaaagtttttttcttccatttcaggtgtcgtgagagctcgtttagtgaaccgtcagatcgcctggagacgccatccacgctgttttgacctccatagaagaatctttgtcgatcctaccatccactcgacacacccgccagcggccgcttcttggtgccagcttatcagccaccatggtgagcaagggcgaggagctgttcaccggggtggtgcccatcctggtcgagctggacggcgacgtaaacggccacaagttcagcgtccgcggcgagggcgagggcgatgccaccaacggcaagctgaccctgaagttcatctgcaccaccggcaagctgcccgtgccctggcccaccctcgtgaccaccttaggctacggcgtggcctgcttcgcccgctaccccgaccacatgaagcagcacgacttcttcaagtccgccatgcccgaaggctacgtccaggagcgcaccatctctttcaaggacgacggtacctacaagacccgcgccgaggtgaagttcgagggcgacaccctggtgaaccgcatcgtgctgaagggcatcgacttcaaggaggacggcaacatcctggggcacaagctggagtacaacttcaacagccacaaggtctatatcacggccgacaagcagaagaacggcatcaaggctaacttcaagacccgccacaacgttgaggacggcggcgtgcagctcgccgaccactaccagcagaacacccccatcggcgacggccccgtgctgctgcccgacaaccactacctgagccatcagtccaaactgagcaaagaccccaacgagaagcgcgatcacatggtcctgaaggagagggtgaccgccgccgggattacacatgacatggatgaactatataaataaGGATCCgcGCGTCCTGGTGAGTGGGCACATCACTTCTTGAGAGTATGGAGGAGTGAAATGACACTCATGCCAGAGTTACTGTATGTCTGCACTTTAAAAGTGTAGCTTTTAAAAGATGATGAATGACTGTCTGTTTGTGTGTGTGTGTGTGTGTGTGTCACCCAGGAGGAGGATCCGGAGGCGGTGGAAGCGGCGGAGGAGGGTAAGGGTGGTGTGTTTGTTTGTTTGTTTGTATGTTTGTATGGAGTCGGGGTTTCTGAATGTATGCCTGAGGCTGGTTGCAGAGTCTCGCTCTGGATGTCTACGCTGGATGTGCAGTAACATGAGCCACTGTGCCCGGCCAATCCTAAGAATTTCTTTTGCGGTGGTTGCAAGTCTGGGCAGAACTCTTGTCAGGGGCTGTAACTTTTACTTATCTTTTTTTTACTCCTTTTTCAGGATTCgcggaaacgcGTACATCCAGCTGACGAGTCCCAAATAGGACGAAACGCgcCCCGGGcgcaggcctctgctagcttgactgactgagatacagcgtaccttcagctcacgcggccgctttctccgcgatccagacatgataagatacattgatgagtttggacaaaccaaaactagaatgcagtgaaaaaaatgccttatttgtgaaatttgtgatgctattgccttatttgtaaccattataagctgcaataaacaagttatctataacaagaaaatatatatataataagttatcacgtaagtagaacatgaaataacaatataattatcgtatgagttaaatcttaaaagtcacgtaaaagataatcatgcgtcattttgactcacgcggtcgttatagttcaaaatcagtgacacttaccgcattgacaagcacgcctcacgggagctccaagcggcgactgagatgtcctaaatgcacagcgacggattcgcgctatttagaaagagagagcaatatttcaagaatgcatgcgtcaattttacgcagactatctttctagggttaaaaaaagcttggcgtaatcatg'
+
+acceptor_prob, donor_prob, nt_pos = get_probs(input_sequence)
+```
+
+Generate plot
+
+```{r}
+# Convert Python objects to R objects
+acceptor_prob <- py$acceptor_prob
+donor_prob <- py$donor_prob
+nt_pos <- py$nt_pos
+
+
+
+# Plot
+trim_start = 2044
+trim_end = 578 # trims from the 3' end by this amount 
+
+plot_splice_sites(nt_pos, acceptor_prob, donor_prob, trim_start, trim_end)
+```
+
+Save the plot as PNG file
+
+```{r}
+
+W = 698
+H = 586
+
+ggsave("/Users/jeanz/Downloads/results.png", width = W / 96, height = H / 96, units = "in", dpi = 300)
+```
